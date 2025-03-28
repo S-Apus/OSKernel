@@ -69,14 +69,15 @@ bash bootstrap.sh
 解决：手动修改DNS（下列二选一）  
   echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf  
   echo "nameserver 223.5.5.5" | sudo tee /etc/resolv.conf  
-然后更新软件源：  
+不能下载git等库可以尝试更新软件源：  
   sudo apt update  
   sudo apt-get update  
 
 ### 3.2  虚拟硬盘空间  
 问题：在安装DragonOS时虚拟硬盘空间不足（25G）  
 解决：创建虚拟机时分配30G，一次性分配  
-  这浪费了我很多时间，因为我安装DragonOS失败后，无法重新进入Ubuntu22.04系统，只显示“/dev/sda3:clean,418486/1605632 files, 6128935/6421504 blocks”，于是我只好删除虚拟机从头来过。
+  #### 注意！  
+这浪费了我很多时间，因为我安装DragonOS失败后，无法重新进入Ubuntu22.04系统，只显示“/dev/sda3:clean,418486/1605632 files, 6128935/6421504 blocks”，于是我只好删除虚拟机从头来过。
 
 ### 3.3  虚拟化技术
 问题：无法运行DragonOS  
