@@ -52,10 +52,10 @@ https://github.com/oscomp/starry-next
 文档：https://docs.dragonos.org.cn/introduction/build_system.html  
 
 ### 2.2.1  下载DragonOS的源代码  
-# 使用ssh克隆  
+使用ssh克隆:  
 git clone git@github.com:DragonOS-Community/DragonOS.git  
 cd DragonOS  
-# 使用镜像源更新子模块  
+使用镜像源更新子模块:  
 make update-submodules-by-mirror  
 
 ### 2.2.2  使用一键初始化脚本进行安装  
