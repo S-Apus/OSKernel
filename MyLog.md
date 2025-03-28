@@ -69,7 +69,7 @@ bash bootstrap.sh
 解决：手动修改DNS（下列二选一）  
   echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf  
   echo "nameserver 223.5.5.5" | sudo tee /etc/resolv.conf  
-然后更新软件源：
+然后更新软件源：  
   sudo apt update  
   sudo apt-get update  
 
