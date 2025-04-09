@@ -19,41 +19,41 @@
 ### 2.1 SSH Key
 
 生成公钥：
-```
+~~~
 ssh-keygen -t ed25519 -C "2673516269@qq.com"
-```
+~~~
 
 复制公钥：
-```
+~~~
 cat ~/.ssh/id_ed25519.pub
-```
+~~~
 
 添加公钥到github：  
 https://github.com/settings/profile
 
 启动 SSH 代理：
-```
+~~~
 eval "$(ssh-agent -s)"
-```
+~~~
 
 添加私钥到代理：
-```
+~~~
 ssh-add ~/.ssh/id_ed25519
-```
+~~~
 
 测试公钥：
-```
+~~~
 ssh -T git@github.com
-```
+~~~
 
 #### 如果报错“Connection refused”：  
 在~/.ssh处执行：nano config  
 输入：  
-```
+~~~
 Host github.com
   Hostname ssh.github.com
   Port 443
   User git
-```
+~~~
 保存
 
