@@ -22,6 +22,28 @@
 
 扩展分区： 
 使用sudo gparted或者growpart（推荐）工具
+安装：
+~~~
+sudo apt update
+sudo apt install cloud-guest-utils -y
+~~~
+查看分区：
+~~~
+lsblk
+~~~
+查看文件空间：
+~~~
+df -h
+~~~
+扩展分区：
+~~~
+sudo growpart /dev/sda 3
+~~~
+扩展文件系统：
+~~~
+sudo resize2fs /dev/sda3
+~~~
+重新查看分区和文件空间
 
 #### 我又重头来过了，这又耽误了我很长时间！
 
