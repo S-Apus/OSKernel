@@ -39,9 +39,11 @@ ssh -T git@github.com
 #### 如果报错“Connection refused”：  
 在~/.ssh处执行：nano config  
 输入：  
-Host github.com  
-  Hostname ssh.github.com  
-  Port 443  
-  User git  
+~~~
+Host github.com
+  Hostname ssh.github.com
+  Port 443
+  User git
+~~~
 保存
 
