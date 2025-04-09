@@ -57,3 +57,9 @@ Host github.com
 ~~~
 保存
 
+### 2.2 仓库配置
+
+将仓库路径添加到 Git 的全局安全目录列表中：
+~~~
+git config --global --add safe.directory /media/sf_Share/DragonOS
+~~~
