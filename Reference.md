@@ -1,4 +1,4 @@
-github.com/oscomp
+https://github.com/oscomp
 
 https://github.com/oscomp/testsuits-for-oskernel
 
