@@ -1,0 +1,11 @@
+*.efi
+*.efi.debug
+*.o
+*.a
+*.tar.*
+*.tar
+/riscv64
+/x86_64
+/.cache
+compile_commands.json
+/output
