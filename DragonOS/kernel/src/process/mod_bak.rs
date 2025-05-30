@@ -226,84 +226,86 @@ impl ProcessManager {
             .insert(pcb.pid(), pcb.clone());
     }
 
-/// 新增！！！
-/// 辅助函数：检查进程状态并尝试转换为Runnable状态
-/// 返回是否需要执行任务激活（true表示需要激活）
-fn check_and_transition_to_runnable(
-    pcb: &Arc<ProcessControlBlock>,
-    expected_state: ProcessState,
-) -> Result<bool, SystemError> {
-    let _guard = unsafe { CurrentIrqArch::save_and_disable_irq() };
-    // 读取状态（读锁）
-    let read_guard = pcb.sched_info().inner_lock_read_irqsave();
-    let current_state = read_guard.state();
-    drop(read_guard);  // 提前释放读锁
-
-    if !current_state.matches(expected_state) {
-        return if current_state.is_runnable() {
-            Ok(false)  // 已经是可运行状态，无需操作
-        } else {
-            Err(SystemError::EINVAL)
-        };
-    }
-
-    // 写锁更新状态
-    let mut write_guard = pcb.sched_info().inner_lock_write_irqsave();
-    let current_state = write_guard.state();
-    if !current_state.matches(expected_state) {
-        return if current_state.is_runnable() {
-            Ok(false)
-        } else {
-            Err(SystemError::EINVAL)
-        };
-    }
-
-    write_guard.set_state(ProcessState::Runnable);
-    if expected_state == ProcessState::Blocked {
-        write_guard.set_wakeup();  // 仅阻塞状态需要设置唤醒标记
-    }
-    Ok(true)
-}
-
-/// 修改！！！
     /// 唤醒一个进程
     pub fn wakeup(pcb: &Arc<ProcessControlBlock>) -> Result<(), SystemError> {
-        let need_activate = Self::check_and_transition_to_runnable(pcb, ProcessState::Blocked)?;
-        if need_activate {
-            let rq = cpu_rq(pcb.sched_info().on_cpu().unwrap_or(current_cpu_id()).data() as usize);
-            let (rq, _guard) = rq.self_lock();
-            rq.update_rq_clock();
-            rq.activate_task(
-                pcb,
-                EnqueueFlag::ENQUEUE_WAKEUP | EnqueueFlag::ENQUEUE_NOCLOCK,
-            );
-            rq.check_preempt_currnet(pcb, WakeupFlags::empty());
+        let _guard = unsafe { CurrentIrqArch::save_and_disable_irq() };
+        let state = pcb.sched_info().inner_lock_read_irqsave().state();
+        if state.is_blocked() {
+            let mut writer = pcb.sched_info().inner_lock_write_irqsave();
+            let state = writer.state();
+            if state.is_blocked() {
+                writer.set_state(ProcessState::Runnable);
+                writer.set_wakeup();
+
+                // avoid deadlock
+                drop(writer);
+
+                let rq =
+                    cpu_rq(pcb.sched_info().on_cpu().unwrap_or(current_cpu_id()).data() as usize);
+
+                let (rq, _guard) = rq.self_lock();
+                rq.update_rq_clock();
+                rq.activate_task(
+                    pcb,
+                    EnqueueFlag::ENQUEUE_WAKEUP | EnqueueFlag::ENQUEUE_NOCLOCK,
+                );
+
+                rq.check_preempt_currnet(pcb, WakeupFlags::empty());
+
+                // sched_enqueue(pcb.clone(), true);
+                return Ok(());
+            } else if state.is_exited() {
+                return Err(SystemError::EINVAL);
+            } else {
+                return Ok(());
+            }
+        } else if state.is_exited() {
+            return Err(SystemError::EINVAL);
+        } else {
+            return Ok(());
         }
-        Ok(())
     }
 
-/// 修改！！！
     /// 唤醒暂停的进程
     pub fn wakeup_stop(pcb: &Arc<ProcessControlBlock>) -> Result<(), SystemError> {
-        let need_activate = Self::check_and_transition_to_runnable(pcb, ProcessState::Stopped)?;
-        if need_activate {
-            let rq = cpu_rq(
-                pcb.sched_info()
-                    .on_cpu()
-                    .unwrap_or(smp_get_processor_id())
-                    .data() as usize,
-            );
+        let _guard = unsafe { CurrentIrqArch::save_and_disable_irq() };
+        let state = pcb.sched_info().inner_lock_read_irqsave().state();
+        if let ProcessState::Stopped = state {
+            let mut writer = pcb.sched_info().inner_lock_write_irqsave();
+            let state = writer.state();
+            if let ProcessState::Stopped = state {
+                writer.set_state(ProcessState::Runnable);
+                // avoid deadlock
+                drop(writer);
 
-            let (rq, _guard) = rq.self_lock();
-            rq.update_rq_clock();
-            rq.activate_task(
-                pcb,
-                EnqueueFlag::ENQUEUE_WAKEUP | EnqueueFlag::ENQUEUE_NOCLOCK,
-            );
+                let rq = cpu_rq(
+                    pcb.sched_info()
+                        .on_cpu()
+                        .unwrap_or(smp_get_processor_id())
+                        .data() as usize,
+                );
 
-            rq.check_preempt_currnet(pcb, WakeupFlags::empty());
+                let (rq, _guard) = rq.self_lock();
+                rq.update_rq_clock();
+                rq.activate_task(
+                    pcb,
+                    EnqueueFlag::ENQUEUE_WAKEUP | EnqueueFlag::ENQUEUE_NOCLOCK,
+                );
+
+                rq.check_preempt_currnet(pcb, WakeupFlags::empty());
+
+                // sched_enqueue(pcb.clone(), true);
+                return Ok(());
+            } else if state.is_runnable() {
+                return Ok(());
+            } else {
+                return Err(SystemError::EINVAL);
+            }
+        } else if state.is_runnable() {
+            return Ok(());
+        } else {
+            return Err(SystemError::EINVAL);
         }
-        Ok(())
     }
 
     /// 标志当前进程永久睡眠，但是发起调度的工作，应该由调用者完成
