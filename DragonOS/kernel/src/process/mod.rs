@@ -277,7 +277,7 @@ fn check_and_transition_to_runnable(
                 pcb,
                 EnqueueFlag::ENQUEUE_WAKEUP | EnqueueFlag::ENQUEUE_NOCLOCK,
             );
-            rq.check_preempt_currnet(pcb, WakeupFlags::empty());
+            rq.check_preempt_current(pcb, WakeupFlags::empty());
         }
         Ok(())
     }
@@ -301,7 +301,7 @@ fn check_and_transition_to_runnable(
                 EnqueueFlag::ENQUEUE_WAKEUP | EnqueueFlag::ENQUEUE_NOCLOCK,
             );
 
-            rq.check_preempt_currnet(pcb, WakeupFlags::empty());
+            rq.check_preempt_current(pcb, WakeupFlags::empty());
         }
         Ok(())
     }
@@ -654,6 +654,13 @@ impl ProcessFlags {
     }
 }
 #[derive(Debug)]
+
+/// 修改！！！
+// 合并基础信息和系统调用栈为一个复合结构
+struct ProcessBasicAndStackInfo {
+    basic: ProcessBasicInfo,
+    syscall_stack: KernelStack,
+}
 pub struct ProcessControlBlock {
     /// 当前进程的pid
     pid: Pid,
@@ -661,7 +668,8 @@ pub struct ProcessControlBlock {
     tgid: Pid,
     /// 有关Pid的相关的信息
     thread_pid: Arc<RwLock<PidStrcut>>,
-    basic: RwLock<ProcessBasicInfo>,
+    // 删除原有的 basic 字段
+    // basic: RwLock<ProcessBasicInfo>,
     /// 当前进程的自旋锁持有计数
     preempt_count: AtomicUsize,
 
@@ -670,8 +678,12 @@ pub struct ProcessControlBlock {
     /// 进程的内核栈
     kernel_stack: RwLock<KernelStack>,
 
-    /// 系统调用栈
-    syscall_stack: RwLock<KernelStack>,
+    // 删除原有的系统调用栈字段
+    // /// 系统调用栈
+    // syscall_stack: RwLock<KernelStack>,
+
+    // 使用单个 RwLock 保护关联字段
+    basic_and_stack: RwLock<ProcessBasicAndStackInfo>,
 
     /// 与调度相关的信息
     sched_info: ProcessSchedulerInfo,
@@ -1056,18 +1068,25 @@ impl ProcessControlBlock {
         return None;
     }
 
-    /// 判断当前进程是否有未处理的信号
-    pub fn has_pending_signal(&self) -> bool {
-        let sig_info = self.sig_info_irqsave();
-        let has_pending = sig_info.sig_pending().has_pending();
-        drop(sig_info);
-        return has_pending;
+/// 修改！！！
+/// 判断当前进程是否有未处理的信号
+pub fn has_pending_signal(&self) -> bool {
+    // 先检查快速标志位，避免频繁获取锁
+    if self.has_pending_signal_fast() {
+        return true;
     }
+    // 标志位为 false 时，再通过锁确认
+    let sig_info = self.sig_info_irqsave();
+    let has_pending = sig_info.sig_pending().has_pending();
+    drop(sig_info);
+    return has_pending;
+}
 
-    /// 根据 pcb 的 flags 判断当前进程是否有未处理的信号
-    pub fn has_pending_signal_fast(&self) -> bool {
-        self.flags.get().contains(ProcessFlags::HAS_PENDING_SIGNAL)
-    }
+/// 修改！！！
+/// 根据 pcb 的 flags 判断当前进程是否有未处理的信号
+pub fn has_pending_signal_fast(&self) -> bool {
+    self.flags.get().contains(ProcessFlags::HAS_PENDING_SIGNAL)
+}
 
     /// 检查当前进程是否有未被阻塞的待处理信号。
     ///
@@ -1640,6 +1659,7 @@ pub struct ProcessSignalInfo {
     tty: Option<Arc<TtyCore>>,
 }
 
+/// 修改！！！
 impl ProcessSignalInfo {
     pub fn sig_blocked(&self) -> &SigSet {
         &self.sig_blocked
@@ -1694,12 +1714,35 @@ impl ProcessSignalInfo {
     ) -> (Signal, Option<SigInfo>) {
         let res = self.sig_pending.dequeue_signal(sig_mask);
         pcb.recalc_sigpending(Some(self));
+        // 检查是否还有待处理信号，更新原子标志位
+        let has_pending = !self.sig_pending.is_empty() || !self.sig_shared_pending.is_empty();
+        if has_pending {
+            pcb.flags.insert(ProcessFlags::HAS_PENDING_SIGNAL);
+        } else {
+            pcb.flags.remove(ProcessFlags::HAS_PENDING_SIGNAL);
+        }
         if res.0 != Signal::INVALID {
             return res;
         } else {
             let res = self.sig_shared_pending.dequeue_signal(sig_mask);
             pcb.recalc_sigpending(Some(self));
+            // 再次检查是否还有待处理信号，更新原子标志位
+            let has_pending = !self.sig_pending.is_empty() || !self.sig_shared_pending.is_empty();
+            if has_pending {
+                pcb.flags.insert(ProcessFlags::HAS_PENDING_SIGNAL);
+            } else {
+                pcb.flags.remove(ProcessFlags::HAS_PENDING_SIGNAL);
+            }
             return res;
+        }
+    }
+
+    pub fn set_sig_pending(&mut self, pending: bool, pcb: &Arc<ProcessControlBlock>) {
+        // 原子更新标志位（假设 flags 支持原子操作）
+        if pending {
+            pcb.flags.insert(ProcessFlags::HAS_PENDING_SIGNAL);
+        } else {
+            pcb.flags.remove(ProcessFlags::HAS_PENDING_SIGNAL);
         }
     }
 }
