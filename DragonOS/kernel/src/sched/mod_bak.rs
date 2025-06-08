@@ -282,13 +282,12 @@ pub trait SchedArch {
     fn initial_setup_sched_local() {}
 }
 
-/// 修改！！！
 /// ## PerCpu的运行队列，其中维护了各个调度器对应的rq
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct CpuRunQueue {
-    // 合并锁状态与持有者为原子字段（低1位：锁状态（0=未锁，1=已锁）；剩余位：持有者CPU ID）
-    lock_state: core::sync::atomic::AtomicU64,
+    lock: SpinLock<()>,
+    lock_on_who: AtomicUsize,
 
     cpu: ProcessorId,
     clock_task: u64,
@@ -329,12 +328,11 @@ pub struct CpuRunQueue {
     idle: Weak<ProcessControlBlock>,
 }
 
-/// 修改！！！
 impl CpuRunQueue {
     pub fn new(cpu: ProcessorId) -> Self {
         Self {
-            // 初始状态：未锁，持有者为无效值（usize::MAX）
-            lock_state: core::sync::atomic::AtomicU64::new(0),
+            lock: SpinLock::new(()),
+            lock_on_who: AtomicUsize::new(usize::MAX),
             cpu,
             clock_task: 0,
             clock: 0,

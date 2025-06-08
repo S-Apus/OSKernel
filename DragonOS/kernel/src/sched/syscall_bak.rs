@@ -10,16 +10,14 @@ use crate::syscall::Syscall;
 use super::fair::CompletelyFairScheduler;
 use super::{cpu_rq, schedule, SchedMode};
 
-/// 修改！！！
 impl Syscall {
     pub fn do_sched_yield() -> Result<usize, SystemError> {
-        // 仅禁用中断至获取锁前
+        // 禁用中断
         let irq_guard = unsafe { CurrentIrqArch::save_and_disable_irq() };
 
         let pcb = ProcessManager::current_pcb();
         let rq = cpu_rq(pcb.sched_info().on_cpu().unwrap_or(current_cpu_id()).data() as usize);
-        let (rq, guard) = rq.self_lock();  // 获取锁时中断已禁用
-        drop(irq_guard);  // 提前恢复中断（锁已持有，后续操作无需中断禁用）
+        let (rq, guard) = rq.self_lock();
 
         // TODO: schedstat_inc(rq->yld_count);
 
@@ -28,6 +26,7 @@ impl Syscall {
         pcb.preempt_disable();
 
         drop(guard);
+        drop(irq_guard);
 
         pcb.preempt_enable(); // sched_preempt_enable_no_resched();
 
